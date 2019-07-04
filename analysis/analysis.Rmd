@@ -1,0 +1,351 @@
+---
+title: "Blur Study Analysis"
+output: html_notebook
+---
+Open R and type in 'install.packages(“lme4”)'
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(readr)
+library(Rmisc)
+library(tidyverse)
+library(ggplot2)
+library(ez)
+library(lme4)
+```
+
+load file
+```{r message=FALSE, warning=FALSE}
+data = read.csv("~/Desktop/BLURRYWORDDATA_all.csv")
+```
+
+Summary stats: Attention probe counts and how many times a subject noticed/didn't notice an attention probe when it is present.
+```{r message=FALSE, warning=FALSE}
+subject_response_probe <- data %>%
+  filter (16<trial_index) %>% # only consider test trials
+  filter(attention_probe != 'none') %>% # only consider trials in which the probe flashed
+  group_by (subject_id)  %>% # group by subject
+  mutate (notisNull = if_else(attention_rt == 'NULL', 0, 1)) %>% # if participants didn't respond, put 0 in this column, else put 1
+  mutate (isNull = if_else(attention_rt == 'NULL', 1, 0)) %>% # if participants did respond, put 1 in this column, else put 0
+  mutate(count=if_else(attention_probe != 'NULL', 1, 0)) %>% # I'm confused here...why would attention_probe ever be equal to 'NULL'?
+  summarize (noticed = sum (notisNull), not_noticed = sum(isNull), total = sum (count)) # tally hits, misses, and events
+```
+
+Data cleaning/formatting for analysis:
+Coding the meaningfulness of target and test stimulus. Use 1 to indicate meaningful and 0 to indicate scrambled.
+
+```{r message=FALSE, warning=FALSE}
+data <- data %>%
+  filter (16<trial_index) %>%
+  mutate (target_meaningfulness = if_else(substr(target_stimulus, start=13, stop=13) == 0, 1, 0)) %>% # 0 is meaningful, 1 and 2 are meaningless
+  mutate (test_meaningfulness = if_else(substr(test_stimulus, start=13, stop=13) == 0, 1, 0))
+# Convert from string to numeric.
+  data$attention_rt = as.numeric(as.character(data$attention_rt))
+  data$attention_delay = as.numeric(as.character(data$attention_delay))
+  data$attention_duration = as.numeric(as.character(data$attention_duration))
+  data$blur_response = as.numeric(as.character(data$blur_response))
+  data$target_blur = as.numeric(as.character(data$target_blur))
+  data$attention_response = as.numeric(as.character(data$attention_response))
+```
+
+Coding of miss or hit. Participants hit if they don't respond when flash is absent or respond within 1500 ms after flash ends(flash onset + flash duration).
+```{r message=FALSE, warning=FALSE}
+data <- data %>%
+  filter (16<trial_index) %>%
+  mutate (hit = if_else(attention_rt >= attention_delay & attention_rt <= attention_delay+attention_duration+1500, 1,0)) # hit if response within 1500 ms of flash
+data$hit[is.na(data$attention_rt)==TRUE & data$attention_probe == 'none'] <- 1 # if no probe and no reponse, hit
+data$hit[is.na(data$attention_rt)==TRUE & data$attention_probe != 'none'] <- 0 # if no probe and response, miss
+```
+
+Calculating hit rates of flash detection.
+```{r message=FALSE, warning=FALSE}
+hit.id <- data %>%
+  filter (16<trial_index) %>%
+  group_by(subject_id) %>%
+  summarize(hit_rate=mean(hit)) %>%
+  mutate(hit_rate=hit_rate * 100) %>%
+  filter(hit_rate<=5) %>%
+  pull(subject_id)
+```
+
+Get subjects whose blur adjustment is 5 at least half of the time
+```{r message=FALSE, warning=FALSE}
+blur.id <- data %>%
+  filter (16<trial_index) %>%
+  mutate(blur.at.five = if_else(blur_response==5, 1, 0)) %>%
+  group_by(subject_id) %>%
+  summarize (blur_rate = mean (blur.at.five)) %>%
+  mutate(blur_rate=blur_rate * 100) %>%
+  filter(blur_rate>50) %>%
+  pull(subject_id)
+```
+
+Filtering using exclusion criteria and specify target/test_meaningfulness as factors with two levels. Everybody has finished the experiment, so we don't need to exclude any trial for incompletion
+```{r message=FALSE, warning=FALSE}
+nlevels(data$subject_id)
+
+all.data <- data %>%
+filter(!subject_id %in% hit.id) %>%
+  filter(!subject_id %in% blur.id) %>%
+  mutate(target_meaningfulness =factor(target_meaningfulness)) %>%
+  mutate(test_meaningfulness =factor(test_meaningfulness))
+
+nlevels(all.data$subject_id)
+```
+
+# Mixed Effects Linear Model
+
+Analyses for perceived target string blurriness will be conducted using a mixed-effects linear model. The outcome of the model will be the perceived target string blurriness, and the predictor variables will be level of target blur, target string meaningfulness, test string meaningfulness, word ID (random effect expected), participant ID (random effect expected due to individual differences). The goal of this analysis is to compare perceived target string blurriness across the four conditions (2 x 2; target string meaningfulness x test string meaningfulness).
+We expect to see a difference in perceived target string blurriness only when the meaningfulness of the target and the test string differs. In other words, we should not observe a difference in perceived target string blurriness when the target and the test string are both meaningful or meaningless. We predict that participants will report meaningful target strings as being sharper when using meaningless than when using meaningful test strings. This result would imply that Lupyan’s results hold after we control for outward directed attentional effects, and a difference in the perceived sharpness of meaningful and meaningless words would not be caused by differential outward-directed attention allocations to meaningful and meaningless strings.
+
+```{r message=FALSE, warning=FALSE}
+perceived_target_string_blur.model = lmer(blur_response ~ target_meaningfulness * test_meaningfulness + target_blur  + (1|target_stimulus) + (1|test_stimulus) + (1|subject_id), data=all.data)
+# predict blur_response with fixed effects of target_blur and the interaction between target_meaningfulness and test_meaningfulness
+#   and independenty random effects of target_stimulus, test_stimulus, and subject_id
+summary (perceived_target_string_blur.model)
+```
+
+Random effects show you how much variability in the dependent measure there is due to stimuli and subjects (our two random effects). “Residual” stands for the variability that’s not due to either stimuli or subject. This is our “ε”, the “random” deviations from the predicted values that are not due to stimuli or subjects. Here, this reflects the fact that each and every performance has some factors that affect target blur that are outside of the purview of our experiment.
+For fixed effects, the coefficient of “target_meaningfulness” is the slope for the categorical effect of target meaningfulness. -0.025227 means that participants adjusted the test string to be slightly, very slightly sharper(adjusted/perceived blur is lower) when the target is meaningfull than when it is meaningless. So is this value almost negligible? What is the criteria for slope magnitude? Anyways, I think that you can observe from the later p-values that the effect is negligible.  
+Looking at the data, it seems like the one thing that we can count on is target blur. As it goes up, adjusted blur goes up.
+
+Converting t-value to p-value
+```{r message=FALSE, warning=FALSE}
+t.vals <- coef(summary(perceived_target_string_blur.model))[,3]
+pnorm(abs(t.vals), lower.tail = FALSE)*2
+confint(perceived_target_string_blur.model)
+```
+So nothing is significant. Does that mean that we have failed to replicate their experiment entirely. Can we say that putting a fixation target on screen removed the effect? Come to think of it, maybe we should have done a pure replication study without the fixation target to see if we can get the same effect. That way we could have said 'putting a fixation target removed the effect/the effect does not exist. Maybe we could have done a half/half study. Let me know what you think.
+
+
+Visualization
+
+perceived_target_string_blur.model = lmer(blur_response ~ target_meaningfulness * test_meaningfulness + target_blur  + (1|target_stimulus) + (1|test_stimulus), data=all.data)
+```{r message=FALSE, warning=FALSE}
+coef(summary(perceived_target_string_blur.model))
+conditions <- all.data %>%
+  mutate(Condition = paste(target_meaningfulness, test_meaningfulness))
+conditions$Condition <- factor(conditions$Condition, levels=c("1 0", "0 1", "0 0", "1 1"), labels=c("Word Target x Nonword Test", "Nonword Target x Word Test", "Nonword Target x Nonword Test", "Word Target x Word Test"))
+conditions <- conditions %>%
+  group_by(Condition, target_blur) %>%
+  summarize(M = mean(blur_response))
+ggplot(conditions, aes(x = target_blur, y = M, group=Condition, color=Condition)) + geom_line() + labs(title="Perceived String Sharpness (reported through matching)",y="Reported Target Blur",x="Target Blur",legend="Condition") + theme_bw()
+
+ggplot(all.data, aes(x = target_blur, y = blur_response, color=target_meaningfulness, linetype=test_meaningfulness)) + geom_line() + scale_color_discrete(name="Test String", breaks=c(0,1),labels=c("Nonword","Word")) + scale_linetype_discrete(name="Target String", breaks=c(0,1),labels=c("Nonword","Word")) + labs(title="Perceived String Sharpness (reported through matching)",y="Reported Target Blur",x="Target Blur",legend="Condition") + theme_bw()
+```
+
+Replicating Lupyan's graphs.
+Graph 1.1 and Graph 1.2. Performance of blur matching for different conditoins.
+```{r message=FALSE, warning=FALSE}
+graph1.1.data <- all.data %>%
+  filter (test_meaningfulness == 0) %>%
+  mutate(blur_response=blur_response/10) %>%
+  mutate(target_blur=target_blur/10) %>%
+  mutate(target_meaningfulness = if_else(target_meaningfulness==1, 'meaningful','meaningless')) %>%
+  group_by(target_blur, target_meaningfulness) %>%
+  summarize(blur_response=mean(blur_response))
+graph1.1.data$target_meaningfulness <- factor(graph1.1.data$target_meaningfulness, levels=c("meaningless", "meaningful"))
+
+ggplot(graph1.1.data, aes(x=target_blur, y=blur_response, group=target_meaningfulness))+
+  geom_line(aes(color=target_meaningfulness,linetype=target_meaningfulness), size=1)+
+  scale_linetype_manual(values=c("solid","twodash"),
+                        name="Target Meaningfulness",
+                        labels=c("Meaningless","Meaningful"))+
+  scale_color_manual(name="Target Meaningfulness",
+                     labels=c("Meaningless","Meaningful"),
+                     values=c("wheat3","red3"))+
+  geom_point(size=1.5, shape = 15)+
+  labs(title="Perceptual Matching: Meaningless Test String",y="Matched Blur (Test Blur)",x="Target Blur")+
+  scale_y_continuous(limits = c(0.0, 1.0), expand = c(0,0))+
+  geom_abline(intercept=0, slope=1, color='grey',linetype="dashed")+
+  theme_light()+
+  theme(plot.title=element_text( hjust=0.5, vjust=1, face='bold'))
+
+graph1.2.data <- all.data %>%
+  filter (test_meaningfulness != 0) %>%
+  mutate(blur_response=blur_response/10) %>%
+  mutate(target_blur=target_blur/10) %>%
+  mutate(target_meaningfulness = if_else(target_meaningfulness==1, 'meaningful','meaningless')) %>%
+  group_by(target_blur, target_meaningfulness) %>%
+  summarize(blur_response=mean(blur_response))
+graph1.2.data$target_meaningfulness <- factor(graph1.2.data$target_meaningfulness, levels=c("meaningless", "meaningful"))
+
+ggplot(graph1.2.data, aes(x=target_blur, y=blur_response))+
+  geom_line(aes(color=target_meaningfulness,linetype=target_meaningfulness), size=1)+
+  scale_linetype_manual(values=c("solid","twodash"),
+                        name="Target Meaningfulness",
+                        labels=c("Meaningless","Meaningful"))+
+  scale_color_manual(name="Target Meaningfulness",
+                     labels=c("Meaningless","Meaningful"),
+                     values=c("wheat3","red3"))+
+  geom_point(size=1.5, shape = 15)+
+  labs(title="Perceptual Matching: Meaningful Test String",y="Matched Blur (Test Blur)",x="Target Blur")+
+  scale_y_continuous(limits = c(0.0, 1.0), expand = c(0,0))+
+  geom_abline(intercept=0, slope=1, color='grey',linetype="dashed")+
+  theme_light()+
+  theme(plot.title=element_text( hjust=0.5, vjust=1, face='bold'))
+```
+
+
+Graph 2.1 and Graph 2.2. Collapsed result.
+```{r message=FALSE, warning=FALSE}
+graph2.1.data <- all.data %>%
+  filter (test_meaningfulness == 0) %>%
+  mutate(blur_response=blur_response/10) %>%
+  mutate(target_blur=target_blur/10) %>%
+  group_by(target_meaningfulness)
+graph2.1.data <- summarySE(data=graph2.1.data, "blur_response",groupvars=c("target_meaningfulness"), conf.interval=0.95)
+
+ggplot(graph2.1.data, aes(x=target_meaningfulness,y=blur_response, fill=target_meaningfulness)) + 
+  scale_fill_manual(name="Target Meaningfulness",
+                     labels=c("Meaningless","Meaningful"),
+                     values=c("wheat3","red3"))+
+  scale_y_continuous(limits = c(0.0, 1.0), expand = c(0,0))+
+  scale_x_discrete(breaks=c(0,1),
+                   labels=c("Meaningless","Meaningful"))+
+  labs(title="Perceptual Matching: Different Category (Meaningless Test String)",
+       y="Blur Response",x="Target Meaningfulness")+
+  geom_bar(stat="identity")+ 
+  geom_errorbar(aes(ymin=blur_response-se,ymax=blur_response+se), position = position_dodge(width = 1.75), width = 0.1) +
+  theme(legend.position="none")
+
+graph2.2.data <- all.data %>%
+  filter (test_meaningfulness != 0) %>%
+  mutate(blur_response=blur_response/10) %>%
+  mutate(target_blur=target_blur/10) %>%
+  group_by(target_meaningfulness)
+graph2.2.data <- summarySE(data=graph2.2.data, "blur_response",groupvars=c("target_meaningfulness"), conf.interval=0.95)
+
+ggplot(graph2.2.data, aes(x=target_meaningfulness,y=blur_response, fill=target_meaningfulness))+
+  scale_fill_manual(name="Target Meaningfulness",
+                     labels=c("Meaningless","Meaningful"),
+                     values=c("wheat3","red3"))+
+  scale_y_continuous(limits = c(0.0, 1.0), expand = c(0,0))+
+  scale_x_discrete(breaks=c(0,1),
+                   labels=c("Meaningless","Meaningful"))+
+  labs(title="Perceptual Matching: Different Category (Meaningful Test String)",y="Blur Response",x="Target Meaningfulness")+
+  geom_bar(stat="identity") + 
+  geom_errorbar(aes(ymin=blur_response-se,ymax=blur_response+se), position = position_dodge(width = 1.75), width = 0.1) +
+  theme(legend.position="none")
+```
+
+Graph 2.3. Collapsed result for the El Greco disconfirmatory experiment (Same meaning categories for target and test strings)
+```{r message=FALSE, warning=FALSE}
+graph2.3.data <- all.data %>%
+  filter (test_meaningfulness == target_meaningfulness) %>%
+  mutate(blur_response=blur_response/10) %>%
+  mutate(target_blur=target_blur/10)
+graph2.3.data <- summarySE(data=graph2.3.data, "blur_response",groupvars=c("target_meaningfulness"), conf.interval=0.95)
+
+ggplot(graph2.3.data, aes(x=target_meaningfulness,y=blur_response, fill=target_meaningfulness))+
+  scale_x_discrete(breaks=c(0,1),
+                   labels=c("Meaningless","Meaningful"))+
+  scale_fill_manual(name="Target Meaningfulness",
+                    breaks=c(0,1),
+                    labels=c("Meaningless","Meaningful"),
+                    values=c("wheat3","red3"))+
+  labs(title="Perceptual Matching: Same Category",y="Blur Response",x="Target Meaningfulness")+
+  scale_y_continuous(limits = c(0.0, 1.0), expand = c(0,0))+
+  geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=blur_response-se,ymax=blur_response+se), position = position_dodge(width = 1.75), width = 0.1)+
+  theme(legend.position="none")
+```
+
+Mixed-Effects Logistic Model
+
+Analyses for attentional probes will be conducted using a mixed-effects logistic model. The outcome of the model will be the attentional probe detection accuracy, and the predictors are probe location (test string or target string), target string meaningfulness, test string meaningfulness, word ID (random effect expected), participant ID (random effect expected due to individual differences). We predict that this logistic model will fit the data well, meaning that probe detection accuracy will differ significantly between target string meaningfulness, test string meaningfulness, and probe location conditions.
+# check this part attention_prbe and target meaningfulness
+```{r message=FALSE, warning=FALSE}
+probe.data <- all.data %>%
+  filter(attention_probe!= 'none')
+attention_probe_detection_model <- glmer(hit  ~ attention_probe + target_meaningfulness + test_meaningfulness + (1|target_stimulus) + (1|test_stimulus) + (1|subject_id), data = probe.data, family = binomial)
+summary (attention_probe_detection_model)
+```
+
+DEVIATION FROM ANALYSIS PLAN: using meaningfulness of the string in which the probe flashed as a predictor variable
+```{r}
+probe.expl.data <- probe.data %>%
+  mutate(Meaningfulness=if_else(attention_probe=="down", if_else(test_meaningfulness==1,"Meaningful", "Meaningless"), if_else(target_meaningfulness==1, "Meaningful", "Meaningless")))
+
+attention_probe_detection_model_expl <- glmer(hit ~ attention_probe + Meaningfulness + (1|target_stimulus) + (1|test_stimulus), data = probe.expl.data, family = binomial)
+summary (attention_probe_detection_model_expl)
+```
+
+
+Visualize effect of probe location (up vs. down, that is, Target vs. Test string)
+
+```{r}
+probe.location.data <- summarySE(data=probe.data, "hit", groupvars=c("attention_probe"), conf.interval=0.95)
+
+ggplot(probe.location.data, aes(x=attention_probe,y=hit, fill=attention_probe))+
+  scale_x_discrete(breaks=c("up","down"),
+                   labels=c("Target String","Test String"))+
+  scale_fill_manual(breaks=c("up","down"),
+                    values=c("wheat3","red3"))+
+  labs(title="Attention to Target vs. Test Strings",y="Probe Detection Accuracy",x="Probe Location")+
+  geom_bar(stat="identity")+
+  coord_cartesian(ylim=c(0.2,0.6))+
+  scale_y_continuous(expand=c(0,0))+
+  geom_errorbar(aes(ymin=hit-se,ymax=hit+se), position = position_dodge(width = 1.75), width = 0.1)+
+  theme(legend.position="none")
+```
+
+Visualize effect of meaningfulness
+```{r}
+probe.location.data <- probe.expl.data %>%
+  summarySE("hit", groupvars=c("attention_probe", "Meaningfulness"), conf.interval=0.95)
+
+ggplot(probe.location.data, aes(x=attention_probe,y=hit, fill=Meaningfulness))+
+  scale_x_discrete(breaks=c("up","down"),
+                   labels=c("Target String","Test String"))+
+  scale_fill_manual(breaks=c("Meaningful","Meaningless"),
+                    values=c("wheat3","red3"))+
+  labs(title="Attention to Meaningless and Meaningful Target and Test Strings",
+       y="Flash Detection Accuracy",x="Flash Location",legend="String Meaningfulness")+
+  geom_bar(stat="identity",position="dodge", width=0.9)+
+  coord_cartesian(ylim=c(0.2,0.5))+
+  scale_y_continuous(expand=c(0,0))+
+  geom_errorbar(aes(ymin=hit-se,ymax=hit+se), position = position_dodge(0.9), width = 0.1)
+```
+
+
+Here I look at the time when participants reacted corrected to the probe. I want to see if reaction time to different meaning categories differ to correctly detect the probe.
+```{r message=FALSE, warning=FALSE}
+probe.reaction.time.data <- probe.data %>%
+  filter(hit!=0) %>%
+  mutate(probe_reaction_time=attention_rt - attention_delay)%>%
+  mutate(Meaningfulness=if_else(attention_probe=="down", if_else(test_meaningfulness==1,"Meaningful", "Meaningless"), if_else(target_meaningfulness==1, "Meaningful", "Meaningless"))) %>%
+  select(subject_id, Meaningfulness, attention_probe, probe_reaction_time)
+
+anova.result <- ezANOVA(data=probe.reaction.time.data, dv=probe_reaction_time, between=c(attention_probe,Meaningfulness))
+anova.result$ANOVA
+
+probe.reaction.time.graph <- probe.reaction.time.data %>%
+  summarySE("probe_reaction_time", groupvars=c("attention_probe", "Meaningfulness"), conf.interval=0.95)
+
+ggplot(probe.reaction.time.graph, aes(x=attention_probe,y=probe_reaction_time, fill=Meaningfulness))+
+  scale_x_discrete(breaks=c("up","down"),
+                   labels=c("Target String","Test String"))+
+  scale_fill_manual(breaks=c("Meaningful","Meaningless"),
+                    values=c("wheat3","red3"))+
+  labs(title="Reaction Time to Probes in Meaningless and Meaningful Target and Test Strings",
+       y="Reaction Time (ms)",x="Probe Location",legend="String Meaningfulness")+
+  geom_bar(stat="identity",position="dodge", width=0.9)+
+  coord_cartesian(ylim=c(600,700))+
+  scale_y_continuous(expand=c(0,0))+
+  geom_errorbar(aes(ymin=probe_reaction_time-se,ymax=probe_reaction_time+se), position = position_dodge(0.9), width = 0.1)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+ken.test.data <- all.data %>%
+  mutate(discrepancy = target_blur - blur_response)
+
+ken.test.model = lmer(discrepancy ~ target_meaningfulness * test_meaningfulness + target_blur  + (1|target_stimulus) + (1|test_stimulus) + (1|subject_id), data=ken.test.data)
+
+# predict blur_response with fixed effects of target_blur and the interaction between target_meaningfulness and test_meaningfulness
+#   and independenty random effects of target_stimulus, test_stimulus, and subject_id
+summary (ken.test.model)
+
+t.vals <- coef(summary(ken.test.model))[,3]
+pnorm(abs(t.vals), lower.tail = FALSE)*2
+```

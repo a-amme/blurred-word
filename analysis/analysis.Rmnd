@@ -1,0 +1,54 @@
+---
+title: "Blur Study"
+output: html_notebook
+---
+
+Mixed Effects Linear Model 
+
+Analyses for perceived target string blurriness will be conducted using a mixed-effects linear model. The outcome of the model will be the perceived target string blurriness, and the predictor variables will be level of target blur, target string meaningfulness, test string meaningfulness, word ID (random effect expected), participant ID (random effect expected due to individual differences). The goal of this analysis is to compare perceived target string blurriness across the four conditions (2 x 2; target string meaningfulness x test string meaningfulness). 
+We expect to see a difference in perceived target string blurriness only when the meaningfulness of the target and the test string differs. In other words, we should not observe a difference in perceived target string blurriness when the target and the test string are both meaningful or meaningless. We predict that participants will report meaningful target strings as being sharper when using meaningless than when using meaningful test strings. This result would imply that Lupyan’s results hold after we control for outward directed attentional effects, and a difference in the perceived sharpness of meaningful and meaningless words would not be caused by differential outward-directed attention allocations to meaningful and meaningless strings. 
+
+Open R and type in 'install.packages(“lme4”)'
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(ez)
+library(lme4)
+```
+
+//load file
+```{r message=FALSE, warning=FALSE}
+data = read.csv("Data/data.csv'")
+```
+
+//Find missing value in any row
+```{r message=FALSE, warning=FALSE}
+which(is.na(data$variable_name))
+```
+
+We need to exclude participants who (1) do not adjust test string blur (2) detect attention probes with chance accuracy.
+
+```{r}
+
+```
+
+Let’s look at the relationship between bla and bla by means of a boxplot:
+```{r message=FALSE, warning=FALSE}
+boxplot(bla ~ attitude*bla,
+	col=c('white','lightgray'), data)
+```
+
+Mixed-effects linear Model
+
+syntax is lmer(response ~ fixed effect + random effect, data=csvfile). For random effect use bla|bla
+
+```{r message=FALSE, warning=FALSE}
+perceived_target_string_blur.model = lmer(perceived_target_string_blurriness ~ target_string_meaningfulness + test_string_meaningfulness + level_of_target_blur + (1|subject) + (1|target_string_id) + (1|test_string_id), data=data)
+summary (perceived_target_string_blur.mode)
+```
+
+
+
+
