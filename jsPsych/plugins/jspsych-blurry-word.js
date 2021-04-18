@@ -1,10 +1,3 @@
-// parameters needed in timeline:
-// add trial.attentionProbe (up or down), trial.attentionProbeDuration,
-// trial.attentionProbeDelay, trial.targetBlur
-
-//to the timeline (for each trial)
-
-
 jsPsych.plugins['jspsych-blurry-word'] = (function(){
 
     var plugin = {};
@@ -16,19 +9,26 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
         name: 'jspsych-blurry-word',
         description: '',
         parameters: {
-
+            // Sets up the target stimulus
             target_stimulus: {
                 type: jsPsych.plugins.parameterType.STRING,
-                pretty_name: 'Fixed Stimulus',
+                pretty_name: 'Fixed stimulus',
                 default: undefined,
                 description: 'The image to be displayed but not adjusted'
             },
-
+            // Sets up the test stimulus
             test_stimulus: {
                 type: jsPsych.plugins.parameterType.IMAGE,
                 pretty_name: 'Stimulus',
                 default: undefined,
                 description: 'The image to be displayed'
+            },
+            // Sets up the fixation target
+            include_fixation: {
+                type: jsPsych.plugins.parameterType.BOOL,
+                pretty_name: 'Include fixation?',
+                default: undefined,
+                description: 'Whether to include the fixation target in the display'
             },
             min: {
                 type: jsPsych.plugins.parameterType.INT,
@@ -91,12 +91,6 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
                 pretty_name: 'Response ends trial',
                 default: true,
                 description: 'If true, trial will end when user makes a response.'
-            },
-            attention_response_ends_trial: {
-                type: jsPsych.plugins.parameterType.BOOL,
-                pretty_name: 'Attention response ends trial',
-                default: false,
-                description: 'If true, trial will end when user makes an attention response.'
             }
         }
     }
@@ -105,197 +99,152 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
 
         var html = '<div id="jspsych-image-slider-response-wrapper" style="margin: 0px 0px; position: relative;">';
 
-        var attn_left_offset = (Math.random() * (100 - 0) + 0);
-        var attn_top_offset = (Math.random() * (100 - 0) + 0);
-
-        // ATTENTION PROBE
-        if(trial.attentionProbe == "up"){
-            html += '<div id="probe-container" style = "position: absolute; left:33%; top:12%; height:60px; width: 34%; z-index:50">'
-            html += '<div id="attnProbe" style="visibility: hidden; position: absolute; '
-            // randomize percentage
-            + "left: " + attn_left_offset
-            + "%; top: " + attn_top_offset
-            + '%; z-index:51;">';
-        } else if(trial.attentionProbe == "down"){
-            html += '<div id="probe-container" style = "position: absolute; left:33%; top:65%; height:60px; width: 34%; z-index:50">'
-            html += '<div id="attnProbe" style="visibility: hidden; position: absolute; '
-            // randomize percentage
-            + "left: " + attn_left_offset
-            + "%; top: " + attn_top_offset
-            + '%; z-index:51;">';
-        }
-        if(trial.attentionProbe == "up" || trial.attentionProbe == "down"){
-            html += '<img src = "attnProbe.png"></div>';
-        }
-
-        if(trial.attentionProbe == "up" || trial.attentionProbe == "down"){
-            jsPsych.pluginAPI.setTimeout(function(){
-                document.querySelector('#attnProbe').style.visibility = "visible";
-                jsPsych.pluginAPI.setTimeout(function(){
-                    document.querySelector('#attnProbe').style.visibility = "hidden";
-                },  trial.attentionProbeDuration); // ATTN PROBE DURATION
-            },  trial.attentionProbeDelay) // ATTN PROBE DELAY
-        }
-        html += '</div>'
-        // end attention probe
-
-
-        html += '<div id="jspsych-image-slider-response-target_stimulus"><img id="targetimg" src="' + trial.target_stimulus + '"></div>';
-
-        html += '<button id="jspsych-image-slider-response-next" class="blur-button jspsych-btn" style = "border: none; z-index:102">'
-        + '<div style="z-index:101"><img src = "fixationcrosses/fixsmaller.png"></div></button>'
-
-
-        html += '<div id="jspsych-image-slider-response-stimulus"><img id="key" src="' + trial.test_stimulus + '" style="blur: 5px"></div>';
-        html += '<div class="jspsych-image-slider-response-container" style="position:relative;">';
-        html += '<input type="range" value="'+trial.start+'" min="'+trial.min+'" max="'+trial.max+'" step="'+trial.step+'" style="width: 100%;" id="jspsych-image-slider-response-response"></input>';
-        html += '<div>'
+        // Display the fixed target stimulus
+        html += '<div id="jspsych-image-slider-response-target_stimulus">'
+        + '<img id="targetimg" src="' + trial.target_stimulus + '">'
+        + '</div>'
+        // Display the "Next" button (either fixation target or empty)
+        + '<button id="jspsych-image-slider-response-next"'; 
+        if (trial.include_fixation) {
+            html += 'class="blur target jspsych-btn">';
+        } else {            
+            html += 'class="blur notarget jspsych-btn">';
+        };
+        html += '<div style="z-index:101">'
+        + '<img src="fixationcrosses/fixsmaller.png">'
+        + '</div>'
+        + '</button>'
+        // Display the adjustable test stimulus with 5px blur
+        + '<div id="jspsych-image-slider-response-stimulus">'
+        + '<img id="testimg" src="' + trial.test_stimulus + '" style="blur: 5px">'
+        + '</div>'
+        // Display the response slider with the inputted specifications
+        + '<div class="jspsych-image-slider-response-container"' 
+        + 'style="position:relative;">'
+        + '<input type="range" value="' + trial.start + '"min="' + trial.min 
+        + '"max="' + trial.max + '" step="' + trial.step 
+        + '"style="width: 100%;" id="jspsych-image-slider-response-response">'
+        + '</input>'
+        + '<div>';
+        /* Label the slider with the desired number of steps. The labels are 
+            placed at the centers of contiguous bins
+        */
         for(var j=0; j < trial.labels.length; j++){
-            var width = 100/(trial.labels.length-1);
-            var left_offset = (j * (100 /(trial.labels.length - 1))) - (width/2);
-            html += '<div style="display: inline-block; position: absolute; left:'+left_offset+'%; text-align: center; width: '+width+'%;">';
-            html += '<span style="text-align: center; font-size: 80%;">'+trial.labels[j]+'</span>';
-            html += '</div>'
-
-        }
-
+            // Calculate width of space between labels
+            var width = 100 / (trial.labels.length - 1); 
+            /* Calculate the "left_offset" (starting position measured from the 
+                left end of the slider) of the label with zero-indexed number 
+                j as the label number times the label-space width minus half 
+                the width. */
+            var left_offset = j * width - width / 2; 
+            html += '<div style="display: inline-block; position: absolute;' 
+            + 'left:' + left_offset + '%; text-align: center; width: ' 
+            + width + '%;">'
+            + '<span style="text-align: center; font-size: 80%;">'
+            + trial.labels[j] 
+            + '</span>'
+            + '</div>';
+        };
         html += '</div>';
 
-
+        // Add all the HTML we've prepared to the trial display and close divs
         display_element.innerHTML = html;
-        html += '</div>';
-        html += '</div>';
+        + '</div>';
+        + '</div>';
+        + '</div>';
+        + '</div>';
 
-
-        html += '</div>';
-        html += '</div>';
-
+        // If there is a trial prompt, add it to the trial display --- this seems off, why are we adding it to the html variable after adding that variable's contents to display_element.innerHTML
         if (trial.prompt !== null){
             html += trial.prompt;
         }
 
-        var response = {
-            rt: null,
-            response: null
-        };
+        // Set up RT and response data collection
+        var response = [];
         var response_history = [];
-        // store attentionResponse
-        var attentionResponse = {
-            rt: null,
-            key: null
-        };
 
-
-        // make the parameter in the timeline so you can store it
-
-        // PASS IN THE TARGETBLUR PARAMETER FROM TIMELINE
+        /* Pass in the targetBlur parameter from the timeline to apply blurring 
+            to the static stimulus (the words come unblurred) */
+        // Blur the target image (id "targetimg")
         document.querySelector("#targetimg").style.filter = "blur(" + trial.targetBlur + "px)";
-        document.querySelector("#key").style.filter = "blur(" + 5 + "px)";
-
+        // Set starting test word blur to 5px (average of all test blur levels)
+        document.querySelector("#testimg").style.filter = "blur(" + 5 + "px)";
+        // Record information each time the participant moves the slider
         display_element.querySelector('#jspsych-image-slider-response-response').addEventListener('mousemove', function() {
-            response.response = display_element.querySelector('#jspsych-image-slider-response-response').value;
-            var last_response = null;
-            if (response_history.length == 0) {
-                response_history.push(response.response, performance.now());
-                last_response = parseFloat(response_history[0][0]);
-
-            }
-            if (Math.abs(parseFloat(response.response) - last_response > 5)) {
-                response_history.push([response.response, performance.now()]);
-                last_response = parseFloat(response_history[response_history.length - 1][0]);
-
-            }
-            document.querySelector("#key").style.filter = "blur("+ response.response + "px)";
-            // console.log(document.querySelector("#key"))
+            // Set the blur response to the value of the slider stored as a float
+            response = parseFloat(display_element.querySelector('#jspsych-image-slider-response-response').value);
+            rt = performance.now();
+            // Update the blur of the test image
+            document.querySelector("#testimg").style.filter = "blur("+ String(response) + "px)";
+            // Add the present slider setting to the stored response history if...
+            // ...it's the result of the participant's first adjustment in this trial...
+            if (response_history.length === 0) {
+                response_history.push([response, rt]);
+            } else { // ...or if it is at least a slider unit more extreme than the previous response
+                last_response = response_history[response_history.length - 1][0];
+                if (Math.abs(response - last_response) > 0.5) {
+                    response_history.push([response, rt]);
+                    console.log(response_history);
+                };
+            };
         });
 
+        /* When the participant clicks the "next" button, record their final 
+            response and RT */
         display_element.querySelector('#jspsych-image-slider-response-next').addEventListener('click', function() {
-            // measure response time
+            /* Get the time of the click to the "next" button and calculate the 
+                RT as time at end minus time at start */
             var endTime = performance.now();
+            /* Store the response (as a float, for consistency with the above) 
+                and RT */
             response.rt = endTime - startTime;
-            response.response = display_element.querySelector('#jspsych-image-slider-response-response').value;
+            response.response = parseFloat(display_element.querySelector('#jspsych-image-slider-response-response').value);
 
+            /* If the trial is supposed to end when the participant responds, 
+                end it */
             if(trial.response_ends_trial){
                 end_trial();
-            } else {
+            } else { // Otherwise, disable the "next" button
                 display_element.querySelector('#jspsych-image-slider-response-next').disabled = true;
-            }
+            };
         });
-
-
-        // function to handle responses by the subject
-        var after_response = function(info) {
-            // only record the first response
-            if (attentionResponse.key == null) {
-                attentionResponse = info;
-            }
-
-            if (trial.attention_response_ends_trial) {
-                end_trial();
-            }
-        };
-
-        // start the response listener
-        if (trial.choices != jsPsych.NO_KEYS) {
-            var keyboardListener = jsPsych.pluginAPI.getKeyboardResponse({
-                callback_function: after_response,
-                valid_responses: trial.choices,
-                rt_method: 'performance',
-                persist: false,
-                allow_held_key: false
-            });
-        };
 
 
         // FUNCTION TO END THE TRIAL WHEN IT IS TIME
         function end_trial(){
             jsPsych.pluginAPI.clearAllTimeouts();
 
-            // kill keyboard listeners
-            if (typeof keyboardListener !== 'undefined') {
-                jsPsych.pluginAPI.cancelKeyboardResponse(keyboardListener);
-            }
-
-            // save data
+            // Save data
             var trialdata = {
                 "target_stimulus": trial.target_stimulus,
                 "test_stimulus": trial.test_stimulus,
                 "target_blur": trial.targetBlur,
                 "blur_rt": response.rt,
-                "blur_response": response.response,
-                "attention_probe": trial.attentionProbe,
-                "attention_delay": trial.attentionProbeDelay,
-                "attention_duration" : trial.attentionProbeDuration,
-                "attention_rt": attentionResponse.rt,
-                "attention_response": attentionResponse.key,
-
+                "blur_response": response.response
             };
 
             display_element.innerHTML = '';
 
-            // TESTING DATA COLLECTION
-            // console.log(trialdata);
-            // console.log(response.response);
-            // console.log(attentionResponse.rt);
-            // console.log(attentionResponse.key);
-
-            // next trial
+            // Advance to next trial
             jsPsych.finishTrial(trialdata);
         }
 
+        // End the trial after a certain amount of time elapses, if desired
+        // Display stimulus for a limited time, if desired
         if (trial.stimulus_duration !== null) {
             jsPsych.pluginAPI.setTimeout(function() {
                 display_element.querySelector('#jspsych-image-slider-response-stimulus').style.visibility = 'hidden';
             }, trial.stimulus_duration);
         }
 
-        // end trial if trial_duration is set
+        // End the trial after a certain amount of time elapses, if desired
         if (trial.trial_duration !== null) {
             jsPsych.pluginAPI.setTimeout(function() {
                 end_trial();
             }, trial.trial_duration);
         }
 
+        // Record start time for trial
         var startTime = performance.now();
     };
 

@@ -8,9 +8,36 @@
  @import url(https://fonts.googleapis.com/css?family=Open+Sans:400italic,700italic,400,700);
 
 /* custom styling for blurry-word*/
+button.blur {
+  outline: none;
+  border: none; 
+  z-index:102;
+  height: fit-content;
+}
 
 .blur-button:hover{
-    background: white;
+  background: white;
+}
+
+button.notarget {
+  width: 100%;
+}
+
+button.notarget img {
+  visibility: hidden;
+}
+
+button.target {
+  width: fit-content;
+}
+
+p, h1 {
+  margin: auto 15% 1em 15%;
+  text-align: justify;
+}
+
+span.blurry {
+  filter: blur(1.25px);
 }
 
 /* Container holding jsPsych content */

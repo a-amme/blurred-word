@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+    <html>
+    	<head>
+    		<title>Word Adjustment Experiment</title>
+    		<script src="jsPsych/jspsych.js"></script>
+    		<script src="jsPsych/plugins/jspsych-html-keyboard-response.js"></script>
+            <script src="jsPsych/plugins/jspsych-image-keyboard-response.js"></script>
+            <script src="jsPsych/plugins/jspsych-blurry-word.js"></script>
+            <script src="jsPsych/plugins/jspsych-call-function.js"></script>
+            <script src="js/serverComm.js"></script>
+    		<link href="jsPsych/css/jspsych.css" rel="stylesheet" type="text/css"></link>
+    	</head>
+    	<body></body>
+    	<script>
+            var id = jsPsych.data.getURLVariable('PROLIFIC_PID');
+            jsPsych.data.addProperties({subject_id:id});
+            // Prepare stimulus parameters
+            // Word
+            var w_choices = ['been', 'book', 'cash', 'dead', 'from', 'long',
+                'look', 'luck', 'much', 'neck', 'room', 'seem', 'send', 'test',
+                'want'];
+            // Randomly select four from the possible stimulus words
+            var word_1 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(word_1),1); // Remove the choice
+            var word_2 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(word_2),1);
+            var word_3 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(word_3),1);
+            var word_4 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(word_4),1);
+            var words = [word_1, word_2, word_3, word_4];
+            /* Randomly select one of the two sets of scrambled words, represented 
+                by 1 and 2 */
+            const scrambling = Math.ceil(Math.random() * 2);
+            /* The same scrambling is, of course, used for all meaningless 
+                words, both test and target */ 
+            var test_m = [0, scrambling];
+            var target_m = [0, scrambling];
+            var blur = [3, 4, 6, 7];
+
+            // Include a trial with each possible combination of...
+            var trial_types = [];
+            // ...word...
+            for (const i of words) {
+                // ...test string meaningfulness (meaningful or scrambling)...
+                for (const j of test_m) {
+                    // ...target string meaningfulness (meaningful or scrambling)...
+                    for (const k of target_m) {
+                        // ...target blur level
+                        for (const l of blur) {
+                            trial_types.push([i, j, k, l])
+                        };
+                    };
+                };
+            };
+
+            var timeline_variables = [];
+            // Get the stimulus filenames and trial data for each trial
+            for (const i of trial_types) {
+                s = 'stimuli/';
+                /* Get the target stimulus filename from numbers associated 
+                    with the selected word and meaningfulness (0 for meaningful, 
+                    1 or 2 for one of the two scramblings) */
+                target = s.concat(i[0], i[2], '.png');
+                // Get the test stimulus filename
+                test = s.concat(i[0], i[1], '.png');
+                // Get the level of blur
+                blur = i[3];
+                timeline_variables.push({
+                    target_stimulus: target,
+                    test_stimulus: test,
+                    targetBlur: blur
+                });
+            };
+
+            // Generate 3 practice trials
+            var prac_timeline_variables = [];
+            while (prac_timeline_variables.length < 3) {
+                // Randomly select a trial from all possible trials
+                const trial = timeline_variables[Math.floor(Math.random() * timeline_variables.length)];
+                /* Check whether the selected trial is already part of the 
+                    practice trials timeline and add it if and only if new */
+                if (prac_timeline_variables.includes(trial) === false) {
+                    prac_timeline_variables.push(trial);
+                };
+            };
+
+            /* Select four words to use in the practice trials. Note that words 
+                selected for the actual trials have already been removed from 
+                the array, and, as such, are not selectable any more */
+            var prac_word_1 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(prac_word_1),1);
+            var prac_word_2 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(prac_word_2),1);
+            var prac_word_3 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(prac_word_3),1);
+            var prac_word_4 = w_choices[Math.floor(Math.random() * w_choices.length)];
+            w_choices.splice(w_choices.indexOf(prac_word_4),1);
+
+            // Replace trial words with practice words in trial setup information
+            for (const i of prac_timeline_variables) {
+                var old_test = i.test_stimulus.slice(8,12);
+                switch(old_test) {
+                    case word_1:
+                        i.test_stimulus = i.test_stimulus.replace(word_1, prac_word_1);
+                        break;
+                    case word_2:
+                        i.test_stimulus = i.test_stimulus.replace(word_2, prac_word_2);
+                        break;
+                    case word_3:
+                        i.test_stimulus = i.test_stimulus.replace(word_3, prac_word_3);
+                        break;
+                    default:
+                        i.test_stimulus = i.test_stimulus.replace(word_4, prac_word_4);
+                };
+                var old_target = i.target_stimulus.slice(8,12);
+                switch(old_target) {
+                    case word_1:
+                        i.target_stimulus = i.target_stimulus.replace(word_1, prac_word_1);
+                        break;
+                    case word_2:
+                        i.target_stimulus = i.target_stimulus.replace(word_2, prac_word_2);
+                        break;
+                    case word_3:
+                        i.target_stimulus = i.target_stimulus.replace(word_3, prac_word_3);
+                        break;
+                    default:
+                        i.target_stimulus = i.target_stimulus.replace(word_4, prac_word_4);
+                };
+            };
+
+            // Define all timelines
+            var timeline = []; // Main timeline
+            var practiceTimeline = [];
+
+            // Add basic instructions to main timeline
+            var initial_instructions = {
+                type: 'html-keyboard-response',
+                stimulus: "<h1>Word Adjustment Experiment</h1>"
+                + "<p>Thank you for contributing to cognitive science " 
+                + "research!</p>"
+                + "<p>In this experiment, you're going to see strings of "
+                + "letters that may look blurry or in focus. The strings " 
+                + "will come in pairs, and the string towards the top of "
+                + "the page will be fixed, while the other one will have "
+                + "an adjustable level of blur.</p>"
+                + "<p>Your job is going to be to adjust the blurriness of the "
+                + "bottom letters so that they look like the letters above "
+                + "them. Importantly, you're going to make the adjustment "
+                + "while keeping your eyes trained on a visual target in the "
+                + "center of the screen, which will look like this: </p>"
+                + "<img style=" + '"margin: 1em auto 1em auto;"' 
+                + "src=" + '"fixationcrosses/fixsmaller.png"' + "></img>"
+                + "<p> Before you start the experiment, you'll get to " 
+                + "practice staying focused on the target while "
+                + "adjusting the blurriness of the letters.</p>"
+                + "<p>Press any key to continue.</p>"
+            };
+            timeline.push(initial_instructions);
+
+            var practice_instructions = {
+                type: 'html-keyboard-response',
+                stimulus: "<h1>Practice Period</h1>"
+                + "<p>Keep your gaze on the target in the center of the "
+                + "screen as you use the slider to adjust the blurriness of "
+                + "the bottom letters so that they look like the top ones."
+                + "Use the mouse to move the slider left and right to adjust "
+                + "the blur. Moving the slider to the left makes the "
+                + "letters sharper. Moving the slider to the right makes the "
+                + "letters blurrier.</p>"
+                + "<p>When you are done adjusting, click on "
+                + "the target to see the next pair of letter strings.</p>"
+            };
+            practiceTimeline.push(practice_instructions);
+
+            // Define a trial
+            var trial = {
+                type: 'jspsych-blurry-word',
+                target_stimulus: jsPsych.timelineVariable('target_stimulus'),
+                test_stimulus: jsPsych.timelineVariable('test_stimulus'),
+                // These trials HAVE the fixation target
+                include_fixation: true,
+                targetBlur: jsPsych.timelineVariable('targetBlur')
+            };
+
+            // Add 3 practice trials to practice timeline
+            var practice = {
+                timeline: [trial],
+                timeline_variables: prac_timeline_variables,
+                randomize_order: true,
+                repetitions: 1
+            };
+            practiceTimeline.push(practice);
+
+            // Add the practice timeline to the main timeline
+            timeline = timeline.concat(practiceTimeline);
+
+            var start_instructions = {
+                type: 'html-keyboard-response',
+                stimulus: "<h1>Practice Period Complete</h1>"
+                + "<p>You're done with the practice portion. Now you "
+                + "can start the actual experiment.</p>" 
+                + "<p>Remember: adjust the blurriness of the bottom letters to match the "
+                + "top letters using the slider, and keep your eyes trained on the "
+                + "target in the middle of the screen!</p>" 
+                + "<p>Press any key to start the experiment.</p>"
+            };
+            timeline.push(start_instructions);
+
+            // Add all trials to the timeline
+            var all_trials = {
+                timeline: [trial],
+                timeline_variables: timeline_variables,
+                randomize_order: true,
+                repetitions: 1
+            };
+            timeline.push(all_trials);
+
+            // Save data to database
+            var saveData = {
+                type: 'call-function',
+                func: function(){
+                  serverComm.save_data(jsPsych.data.get().values());
+                }
+            };
+            timeline.push(saveData);
+
+            var debrief1 = {
+                type: 'html-keyboard-response',
+                stimulus: "<h1>Thank You</h1>" + 
+                "<p>Congratulations! You're done with the experiment.</p> "+
+                "<p>This experiment is helping us, a team of young researchers, " +
+                "learn more about a proposed effect of knowledge on perception " +
+                "first found by a scientist named G. Lupyan. " + 
+                "In one of Lupyan's experiments, participants made meaningless, " +
+                "but not meaningful, letter strings sharper when adjusting them " +
+                "to match words, a result which suggests that meaningful " +
+                "letters might actually <em>look sharper</em> than " +
+                "<span class=" + '"blurry"' + ">mnaegnilses</span> " +
+                "ones. We propose that such an effect might be influenced by the way " +
+                "people pay attention to the letter strings in the experiment.</p> " + 
+                "<p>In this experiment, you did Lupyan's study with your gaze " + 
+                "fixed on a target, so that your physically directed attention is "+
+                "equally allocated between the meaningful and meaningless letters. We think "+
+                "that the way you direct your attention makes words look sharper " +
+                "than meaningless letter strings, so we hypothesize that " +
+                "unlike the participants in Lupyan's original study, differences " +
+                "in string meaningfulness will not have influenced the way " + 
+                "you adjusted blur levels.</p>" +
+                "<p>Analyzing the data you've generated " +
+                "will help us determine if our hypothesis is wrong. Thank you! </p>" +
+                "<p><a href='https://app.prolific.ac/submissions/complete?cc=UDN08F8A'>" + 
+                "Click here to complete the experiment and return to " +
+                "Prolific.</a> You do not need a completion code.</p>",
+                choices: jsPsych.NO_KEYS
+            };
+            timeline.push(debrief1);
+
+            jsPsych.init({
+              timeline: timeline,
+            });
+        </script>
+    </html>
