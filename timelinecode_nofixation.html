@@ -168,11 +168,12 @@
             };
             practiceTimeline.push(practice_instructions);
 
-            // Define a trial
-            var trial = {
+            // Define a practice trial
+            var practice_trial = {
                 type: 'jspsych-blurry-word',
                 target_stimulus: jsPsych.timelineVariable('target_stimulus'),
                 test_stimulus: jsPsych.timelineVariable('test_stimulus'),
+                purpose: 'practice',
                 // These trials DON'T HAVE the fixation target
                 include_fixation: false,
                 targetBlur: jsPsych.timelineVariable('targetBlur')
@@ -180,7 +181,7 @@
 
             // Add 3 practice trials to practice timeline
             var practice = {
-                timeline: [trial],
+                timeline: [practice_trial],
                 timeline_variables: prac_timeline_variables,
                 randomize_order: true,
                 repetitions: 1
@@ -200,6 +201,16 @@
                 + "<p>Press any key to start the experiment.</p>"
             };
             timeline.push(start_instructions);
+
+            // Define a trial
+            var trial = {
+                type: 'jspsych-blurry-word',
+                target_stimulus: jsPsych.timelineVariable('target_stimulus'),
+                test_stimulus: jsPsych.timelineVariable('test_stimulus'),
+                // These trials DON'T HAVE the fixation target
+                include_fixation: false,
+                targetBlur: jsPsych.timelineVariable('targetBlur')
+            };
 
             // Add all trials to the timeline
             var all_trials = {

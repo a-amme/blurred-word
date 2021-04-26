@@ -173,11 +173,12 @@
             };
             practiceTimeline.push(practice_instructions);
 
-            // Define a trial
-            var trial = {
+            // Define a practice trial
+            var practice_trial = {
                 type: 'jspsych-blurry-word',
                 target_stimulus: jsPsych.timelineVariable('target_stimulus'),
                 test_stimulus: jsPsych.timelineVariable('test_stimulus'),
+                purpose: 'practice',
                 // These trials HAVE the fixation target
                 include_fixation: true,
                 targetBlur: jsPsych.timelineVariable('targetBlur')
@@ -185,7 +186,7 @@
 
             // Add 3 practice trials to practice timeline
             var practice = {
-                timeline: [trial],
+                timeline: [practice_trial],
                 timeline_variables: prac_timeline_variables,
                 randomize_order: true,
                 repetitions: 1
@@ -207,6 +208,16 @@
             };
             timeline.push(start_instructions);
 
+            // Define a trial
+            var trial = {
+                type: 'jspsych-blurry-word',
+                target_stimulus: jsPsych.timelineVariable('target_stimulus'),
+                test_stimulus: jsPsych.timelineVariable('test_stimulus'),
+                // These trials HAVE the fixation target
+                include_fixation: true,
+                targetBlur: jsPsych.timelineVariable('targetBlur')
+            };
+
             // Add all trials to the timeline
             var all_trials = {
                 timeline: [trial],
@@ -217,10 +228,19 @@
             timeline.push(all_trials);
 
             // Save data to database
+            /*
             var saveData = {
                 type: 'call-function',
                 func: function(){
                   serverComm.save_data(jsPsych.data.get().values());
+                }
+            };
+            timeline.push(saveData); */
+
+            var saveData = {
+                type: 'call-function',
+                func: function(){
+                  console.log(jsPsych.data.get().values());
                 }
             };
             timeline.push(saveData);

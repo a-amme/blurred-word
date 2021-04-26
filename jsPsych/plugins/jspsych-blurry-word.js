@@ -30,6 +30,12 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
                 default: undefined,
                 description: 'Whether to include the fixation target in the display'
             },
+            purpose: {
+                type: jsPsych.plugins.parameterType.STRING,
+                pretty_name: 'Is this a practice or test trial?',
+                default: 'test',
+                description: 'Whether the trial is practice ("practice") or experimental ("test")'
+            },
             min: {
                 type: jsPsych.plugins.parameterType.INT,
                 pretty_name: 'Min slider',
@@ -98,6 +104,12 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
     plugin.trial = function(display_element, trial) {
 
         var html = '<div id="jspsych-image-slider-response-wrapper" style="margin: 0px 0px; position: relative;">';
+        // Prepare the click reminder for no target practice trials
+        html += '<div id=click-reminder style="visibility: hidden">'
+        + '<p>Remember to click on the area between the two letter strings '
+        + 'to go to the next pair.'
+        + '</p>'
+        + '</div>';
 
         // Display the fixed target stimulus
         html += '<div id="jspsych-image-slider-response-target_stimulus">'
@@ -184,10 +196,24 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
                 last_response = response_history[response_history.length - 1][0];
                 if (Math.abs(response - last_response) > 0.5) {
                     response_history.push([response, rt]);
-                    console.log(response_history);
                 };
             };
         });
+
+        /* During the practice trials in the "no target" version of the task,
+            remind participants to click in the middle of the screen to 
+            advance if they click elsewhere */
+        function toggleMessage() {
+            // Display reminder message and highlight the clickable zone
+            display_element.querySelector('#click-reminder').style.visibility = "visible";
+            display_element.querySelector('button.notarget').style.backgroundColor = "#fff675";
+
+        }; 
+        if (trial.include_fixation === false && trial.purpose === "practice") {
+            display_element.querySelector('#jspsych-image-slider-response-stimulus').addEventListener('click', toggleMessage);
+            display_element.querySelector('#jspsych-image-slider-response-target_stimulus').addEventListener('click', toggleMessage);
+        }; 
+
 
         /* When the participant clicks the "next" button, record their final 
             response and RT */
@@ -199,7 +225,7 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
                 and RT */
             response.rt = endTime - startTime;
             response.response = parseFloat(display_element.querySelector('#jspsych-image-slider-response-response').value);
-
+            // Reset click reminder message 
             /* If the trial is supposed to end when the participant responds, 
                 end it */
             if(trial.response_ends_trial){
@@ -220,7 +246,8 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
                 "test_stimulus": trial.test_stimulus,
                 "target_blur": trial.targetBlur,
                 "blur_rt": response.rt,
-                "blur_response": response.response
+                "blur_response": response.response,
+                "blur_response_rt_history": response_history
             };
 
             display_element.innerHTML = '';
