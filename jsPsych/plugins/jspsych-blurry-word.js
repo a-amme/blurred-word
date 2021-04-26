@@ -210,8 +210,11 @@ jsPsych.plugins['jspsych-blurry-word'] = (function(){
 
         }; 
         if (trial.include_fixation === false && trial.purpose === "practice") {
-            display_element.querySelector('#jspsych-image-slider-response-stimulus').addEventListener('click', toggleMessage);
-            display_element.querySelector('#jspsych-image-slider-response-target_stimulus').addEventListener('click', toggleMessage);
+            // Get all the divs in which clicking should activate the message
+            var elements = display_element.querySelectorAll('#jspsych-image-slider-response-wrapper > div:not(#jspsych-image-slider-response-next)');
+            for (element of elements) {
+                element.addEventListener('click', toggleMessage);
+            };
         }; 
 
 
